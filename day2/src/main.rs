@@ -1,5 +1,6 @@
 use std::fs;
 use std::str::FromStr;
+use itertools::iproduct;
 
 #[derive(Debug, PartialEq)]
 enum IntcodeReturnType {
@@ -8,29 +9,102 @@ enum IntcodeReturnType {
     Finished(IntcodeState),
 }
 
+type Memory = Vec<usize>;
 
 #[derive(Debug, PartialEq)]
 struct IntcodeState {
-    code: Vec<usize>,
+    code: Memory,
     index: usize,
+}
+
+impl IntcodeState {
+    fn from(code: Memory) -> IntcodeState {
+        IntcodeState { code, index: 0 }
+    }
+}
+
+enum OpMode {
+    Add,
+    Mul,
+    Terminate,
+}
+
+impl OpMode {
+    fn to_index_increase(&self) -> usize {
+        match self {
+            OpMode::Add => 4,
+            OpMode::Mul => 4,
+            OpMode::Terminate => 1,
+        }
+    }
+
+    fn from_usize(input: usize) -> Result<Self, IntcodeReturnType> {
+        match input {
+            1 => Ok(OpMode::Add),
+            2 => Ok(OpMode::Mul),
+            99 => Ok(OpMode::Terminate),
+            _ => Err(IntcodeReturnType::CodeError)
+        }
+    }
 }
 
 type IntcodeResult = std::result::Result<IntcodeState, IntcodeReturnType>;
 
-
 fn main() {
-    let filename = "./day2/resources/input_edit";
+    let original_code = get_input_vec();
+    let code = get_custom_inputs(&original_code, 12, 2);
 
-    let code: Vec<usize> = fs::read_to_string(filename)
+    let intcode = complete_intcode(IntcodeState { code, index: 0 });
+
+    println!("Intcode Return: {:?}", intcode);
+
+    let valid_values: Vec<usize> = find_inputs_for(&original_code, 19_690_720).iter()
+        .map(|(noun, verb)| 100 * noun + verb).collect();
+
+    println!("valid inputs are: {:?}", valid_values)
+}
+
+fn find_inputs_for(memory: &Memory, wanted_output: usize) -> Vec<(usize, usize)> {
+    let mut valid_values = vec![];
+    for (noun, verb) in iproduct!(0..99, 0..99) {
+        let code = get_custom_inputs(&memory, noun, verb);
+
+        let intcode = complete_intcode(IntcodeState::from(code));
+
+        match intcode {
+            IntcodeReturnType::CodeError => { continue; },
+            IntcodeReturnType::IndexError => { continue },
+            IntcodeReturnType::Finished(state) => {
+                let output = state.code[0];
+                if output == wanted_output {
+                    valid_values.push((noun, verb))
+                }
+            },
+        }
+    }
+
+    valid_values
+}
+
+fn get_custom_inputs(memory: &Memory, noun: usize, verb: usize) -> Memory {
+    let mut new_memory = memory.clone();
+
+    new_memory[1] = noun;
+    new_memory[2] = verb;
+
+    new_memory
+}
+
+fn get_input_vec() -> Memory {
+    let filename = "./day2/resources/input_orig";
+    let code: Memory = fs::read_to_string(filename)
         .expect("Something went wrong reading the file")
         .split(',')
         .map(|line| usize::from_str(line).expect("Parsing error"))
         .collect();
-
-    let intcode = complete_intcode(IntcodeState { code, index: 0 });
-
-    println!("Intcode Return: {:?}", intcode)
+    code
 }
+
 
 fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     loop {
@@ -42,30 +116,40 @@ fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
 }
 
 fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
-    let mut code = intcode_state.code;
+    let code = intcode_state.code;
     let index = intcode_state.index;
-    let op_mode = code.get(index).ok_or(IntcodeReturnType::IndexError)?.to_owned();
+    let op_mode = OpMode::from_usize(*code.get(index).ok_or(IntcodeReturnType::IndexError)?)?;
 
-    if op_mode == 99 { return Err(IntcodeReturnType::Finished(IntcodeState { code, index })) }
-
-    let index_1 = code.get(index + 1).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-    let index_2 = code.get(index + 2).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-
-    let target_index = code.get(index + 3).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-    code.get(target_index).ok_or(IntcodeReturnType::IndexError)?;
-
-    let operand_1 = code.get(index_1).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-    let operand_2 = code.get(index_2).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-
-    let operation_result = match op_mode {
-        1 => operand_1 + operand_2,
-        2 => operand_1 * operand_2,
-        _ => return Err(IntcodeReturnType::CodeError),
+    let new_value = match op_mode {
+        OpMode::Terminate => return Err(IntcodeReturnType::Finished(IntcodeState { code, index })),
+        OpMode::Add => {
+            let operand_1 = get_value_at_index_location(&code, index + 1)?;
+            let operand_2 = get_value_at_index_location(&code, index + 2)?;
+            operand_1 + operand_2
+        },
+        OpMode::Mul => {
+            let operand_1 = get_value_at_index_location(&code, index + 1)?;
+            let operand_2 = get_value_at_index_location(&code, index + 2)?;
+            operand_1 * operand_2
+        }
     };
 
-    code[target_index] = operation_result;
+    let code = try_set_at_index_location(code, index + 3, new_value)?;
 
-    Ok(IntcodeState { code, index: index + 4 })
+    Ok(IntcodeState { code, index: index + op_mode.to_index_increase() })
+}
+
+fn get_value_at_index_location(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
+    let index_1 = code.get(index).ok_or(IntcodeReturnType::IndexError)?.to_owned();
+    Ok(code.get(index_1).ok_or(IntcodeReturnType::IndexError)?.to_owned())
+}
+
+fn try_set_at_index_location(mut code: Memory, index: usize, value: usize) -> Result<Memory, IntcodeReturnType> {
+    let target_index = code.get(index).ok_or(IntcodeReturnType::IndexError)?.to_owned();
+    code.get(target_index).ok_or(IntcodeReturnType::IndexError)?;
+    code[target_index] = value;
+
+    Ok(code)
 }
 
 
@@ -128,7 +212,7 @@ mod tests {
 
         #[test]
         fn test_intcode_index_error_2() {
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 0, 0, 0, 0, 34, 4, 5], index: 0 }), IntcodeReturnType::IndexError);
+            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 0, 0, 0, 1, 34, 4, 5], index: 0 }), IntcodeReturnType::IndexError);
         }
 
 
