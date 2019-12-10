@@ -45,7 +45,11 @@ impl OpMode {
     }
 }
 
-pub fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
+pub fn run_instruction_set(memory: Memory) -> IntcodeReturnType {
+    complete_intcode(IntcodeState::from(memory))
+}
+
+fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     loop {
         intcode_state = match intcode_step(intcode_state) {
             Ok(t) => t,

@@ -1,13 +1,13 @@
 use itertools::iproduct;
 use std::fs;
 use std::str::FromStr;
-use intcode::{IntcodeState, complete_intcode, Memory, IntcodeReturnType};
+use intcode::{IntcodeState, run_instruction_set, Memory, IntcodeReturnType};
 
 fn main() {
     let original_code = get_input_vec();
     let code = get_custom_inputs(&original_code, 12, 2);
 
-    let intcode = complete_intcode(IntcodeState::from(code));
+    let intcode = run_instruction_set(code);
 
     println!("Intcode Return: {:?}", intcode);
 
@@ -24,7 +24,7 @@ fn find_inputs_for(memory: &Memory, wanted_output: usize) -> Vec<(usize, usize)>
     for (noun, verb) in iproduct!(0..99, 0..99) {
         let code = get_custom_inputs(&memory, noun, verb);
 
-        let intcode = complete_intcode(IntcodeState::from(code));
+        let intcode = run_instruction_set(code);
 
         match intcode {
             IntcodeReturnType::CodeError => {
