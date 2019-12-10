@@ -347,6 +347,19 @@ mod tests {
         }
 
         #[test]
+        fn test_intcode_step_negative() {
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![1101,100,-1,4,0])),
+                Ok(IntcodeState::from_all(
+                    vec![1101,100,-1,4,99],
+                    4,
+                    0,
+                    vec![]
+                ))
+            );
+        }
+
+        #[test]
         fn test_intcode_step_parameter_mode_add() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1101, 4, 3, 4, 33])),
