@@ -1,5 +1,7 @@
+use crate::IntcodeReturnType::CodeError;
+use crate::ParamMode::{Immediate, Position};
 use crate::ProgramState::{Halted, Running};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Debug, PartialEq)]
 pub enum IntcodeReturnType {
@@ -21,11 +23,16 @@ enum ProgramState {
     Halted,
 }
 
+enum ParamMode {
+    Position,
+    Immediate,
+}
+
 enum OpMode {
-    Add(usize, usize),
-    Mul(usize, usize),
+    Add(ParamMode, ParamMode),
+    Mul(ParamMode, ParamMode),
     Input,
-    Output(usize),
+    Output(ParamMode),
 }
 
 pub type Memory = Vec<i32>;
@@ -55,6 +62,18 @@ impl IntcodeState {
     }
 }
 
+impl TryFrom<usize> for ParamMode {
+    type Error = IntcodeReturnType;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Position),
+            1 => Ok(Immediate),
+            _ => Err(CodeError),
+        }
+    }
+}
+
 impl ProgramState {
     fn from_memory_location(input: i32) -> Result<Self, IntcodeReturnType> {
         assert!(input <= 99999);
@@ -62,11 +81,11 @@ impl ProgramState {
         let op_mode = n % 100;
         n = n / 100;
 
-        let first_param = n % 10;
+        let first_param = ParamMode::try_from(n % 10)?;
         n = n / 10;
-        let second_param = n % 10;
+        let second_param = ParamMode::try_from(n % 10)?;
         n = n / 10;
-        let third_param = n % 10;
+        let third_param = ParamMode::try_from(n % 10)?;
         n = n / 10;
 
         match op_mode {
@@ -131,9 +150,9 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
     let index = intcode_state.index;
 
     let mut new_state = match op_mode {
-        OpMode::Add(_, _) => {
-            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
-            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
+        OpMode::Add(ref mode_1, ref mode_2) => {
+            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1, mode_1)?;
+            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2, mode_2)?;
             intcode_state.code = try_set_at_index_location(
                 intcode_state.code,
                 index + op_mode.result_index_offset(),
@@ -142,9 +161,9 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state
         }
-        OpMode::Mul(_, _) => {
-            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
-            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
+        OpMode::Mul(ref mode_1, ref mode_2)  => {
+            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1, mode_1)?;
+            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2, mode_2)?;
 
             intcode_state.code = try_set_at_index_location(
                 intcode_state.code,
@@ -163,8 +182,8 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state
         }
-        OpMode::Output(_) => {
-            let output = get_value_at_index_location(&intcode_state.code, index + 1)?;
+        OpMode::Output(ref mode) => {
+            let output = get_value_at_index_location(&intcode_state.code, index + 1, mode)?;
 
             intcode_state.output.push(output);
             intcode_state
@@ -181,12 +200,22 @@ fn get_index_value(code: &Memory, index: usize) -> Result<i32, IntcodeReturnType
         .to_owned())
 }
 
-fn get_value_at_index_location(code: &Memory, index: usize) -> Result<i32, IntcodeReturnType> {
-    let i: usize = get_index_value(code, index)?
-        .try_into()
-        .map_err(|_| IntcodeReturnType::IndexError)?;
+fn get_value_at_index_location(
+    code: &Memory,
+    index: usize,
+    mode: &ParamMode,
+) -> Result<i32, IntcodeReturnType> {
+    let index_value = get_index_value(code, index)?;
+    match mode {
+        Immediate => Ok(index_value as i32),
+        Position => {
+            let i: usize = index_value
+                .try_into()
+                .map_err(|_| IntcodeReturnType::IndexError)?;
 
-    Ok(code.get(i).ok_or(IntcodeReturnType::IndexError)?.to_owned())
+            Ok(code.get(i).ok_or(IntcodeReturnType::IndexError)?.to_owned())
+        }
+    }
 }
 
 fn try_set_at_index_location(
@@ -194,10 +223,11 @@ fn try_set_at_index_location(
     index: usize,
     value: i32,
 ) -> Result<Memory, IntcodeReturnType> {
-    let target_index:usize = code
+    let target_index: usize = code
         .get(index)
         .ok_or(IntcodeReturnType::IndexError)?
-        .to_owned().try_into()
+        .to_owned()
+        .try_into()
         .map_err(|_| IntcodeReturnType::IndexError)?;
     code.get(target_index)
         .ok_or(IntcodeReturnType::IndexError)?;
@@ -304,7 +334,7 @@ mod tests {
         }
 
         #[test]
-        fn test_intcode_step_parameter_mode() {
+        fn test_intcode_step_parameter_mode_mul() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1002, 4, 3, 4, 33])),
                 Ok(IntcodeState::from_all(
@@ -312,6 +342,32 @@ mod tests {
                     4,
                     0,
                     vec![]
+                ))
+            );
+        }
+
+        #[test]
+        fn test_intcode_step_parameter_mode_add() {
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![1101, 4, 3, 4, 33])),
+                Ok(IntcodeState::from_all(
+                    vec![1101, 4, 3, 4, 7],
+                    4,
+                    0,
+                    vec![]
+                ))
+            );
+        }
+
+        #[test]
+        fn test_intcode_step_parameter_mode_out() {
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![104, 55, 3, 4, 33])),
+                Ok(IntcodeState::from_all(
+                    vec![104, 55, 3, 4, 33],
+                    2,
+                    0,
+                    vec![55]
                 ))
             );
         }
