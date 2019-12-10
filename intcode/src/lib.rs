@@ -22,10 +22,10 @@ enum ProgramState {
 }
 
 enum OpMode {
-    Add,
-    Mul,
+    Add(usize, usize),
+    Mul(usize, usize),
     Input,
-    Output,
+    Output(usize),
 }
 
 pub type Memory = Vec<i32>;
@@ -57,11 +57,23 @@ impl IntcodeState {
 
 impl ProgramState {
     fn from_memory_location(input: i32) -> Result<Self, IntcodeReturnType> {
-        match input {
-            1 => Ok(Running(OpMode::Add)),
-            2 => Ok(Running(OpMode::Mul)),
+        assert!(input <= 99999);
+        let mut n: usize = input.try_into().map_err(|_| IntcodeReturnType::CodeError)?;
+        let op_mode = n % 100;
+        n = n / 100;
+
+        let first_param = n % 10;
+        n = n / 10;
+        let second_param = n % 10;
+        n = n / 10;
+        let third_param = n % 10;
+        n = n / 10;
+
+        match op_mode {
+            1 => Ok(Running(OpMode::Add(first_param, second_param))),
+            2 => Ok(Running(OpMode::Mul(first_param, second_param))),
             3 => Ok(Running(OpMode::Input)),
-            4 => Ok(Running(OpMode::Output)),
+            4 => Ok(Running(OpMode::Output(first_param))),
             99 => Ok(Halted),
             _ => Err(IntcodeReturnType::CodeError),
         }
@@ -71,19 +83,19 @@ impl ProgramState {
 impl OpMode {
     fn get_index_increase(&self) -> usize {
         match self {
-            OpMode::Add => 4,
-            OpMode::Mul => 4,
+            OpMode::Add(_, _) => 4,
+            OpMode::Mul(_, _) => 4,
             OpMode::Input => 2,
-            OpMode::Output => 2,
+            OpMode::Output(_) => 2,
         }
     }
 
     fn result_index_offset(&self) -> usize {
         match self {
-            OpMode::Add => 3,
-            OpMode::Mul => 3,
+            OpMode::Add(_, _) => 3,
+            OpMode::Mul(_, _) => 3,
             OpMode::Input => 1,
-            OpMode::Output => 1,
+            OpMode::Output(_) => 1,
         }
     }
 }
@@ -119,7 +131,7 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
     let index = intcode_state.index;
 
     let mut new_state = match op_mode {
-        OpMode::Add => {
+        OpMode::Add(_, _) => {
             let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
             let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
             intcode_state.code = try_set_at_index_location(
@@ -130,7 +142,7 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state
         }
-        OpMode::Mul => {
+        OpMode::Mul(_, _) => {
             let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
             let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
 
@@ -151,7 +163,7 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state
         }
-        OpMode::Output => {
+        OpMode::Output(_) => {
             let output = get_value_at_index_location(&intcode_state.code, index + 1)?;
 
             intcode_state.output.push(output);
@@ -291,7 +303,7 @@ mod tests {
             );
         }
 
-        //#[test]
+        #[test]
         fn test_intcode_step_parameter_mode() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1002, 4, 3, 4, 33])),
