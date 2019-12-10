@@ -1,7 +1,6 @@
 use crate::IntcodeReturnType::CodeError;
 use crate::ParamMode::{Immediate, Position};
 use crate::ProgramState::{Halted, Running};
-use std::cmp::Ordering::Less;
 use std::convert::{TryFrom, TryInto};
 
 pub mod input;
@@ -59,14 +58,6 @@ impl IntcodeState {
             ..IntcodeState::default()
         }
     }
-    fn from_all(code: Memory, index: usize, input: i32, output: Vec<i32>) -> IntcodeState {
-        IntcodeState {
-            code,
-            index,
-            input,
-            output,
-        }
-    }
 }
 
 impl TryFrom<usize> for ParamMode {
@@ -99,12 +90,12 @@ impl ProgramState {
         assert!(input <= 99999);
         let mut n: usize = input.try_into().map_err(|_| IntcodeReturnType::CodeError)?;
         let op_mode = n % 100;
-        n = n / 100;
+        n /= 100;
 
         let first_param = ParamMode::try_from(n % 10)?;
-        n = n / 10;
+        n /= 10;
         let second_param = ParamMode::try_from(n % 10)?;
-        n = n / 10;
+        n /= 10;
         let _third_param = ParamMode::try_from(n % 10)?;
 
         match op_mode {
@@ -272,6 +263,18 @@ fn try_set_at_index_location(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl IntcodeState {
+        fn from_all(code: Memory, index: usize, input: i32, output: Vec<i32>) -> IntcodeState {
+            IntcodeState {
+                code,
+                index,
+                input,
+                output,
+            }
+        }
+    }
+
 
     mod test_step {
         use super::*;

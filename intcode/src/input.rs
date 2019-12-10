@@ -8,7 +8,7 @@ pub fn get_input_vec(day: &str) -> Memory {
         .expect("Something went wrong reading the file")
         .split(',')
         .map(|line| {
-            i32::from_str(line.trim()).expect(format!("Parsing error with {}", line).as_ref())
+            i32::from_str(line.trim()).unwrap_or_else(|_| panic!("Parsing error with {}", line))
         })
         .collect();
     code
