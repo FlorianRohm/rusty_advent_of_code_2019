@@ -1,4 +1,4 @@
-use crate::ProgramState::{Running, Halted};
+use crate::ProgramState::{Halted, Running};
 
 #[derive(Debug, PartialEq)]
 pub enum IntcodeReturnType {
@@ -7,11 +7,12 @@ pub enum IntcodeReturnType {
     Finished(IntcodeState),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct IntcodeState {
     pub code: Memory,
     index: usize,
     input: usize,
+    pub output: Vec<usize>,
 }
 
 enum ProgramState {
@@ -23,6 +24,7 @@ enum OpMode {
     Add,
     Mul,
     Input,
+    Output,
 }
 
 pub type Memory = Vec<usize>;
@@ -30,13 +32,25 @@ pub type IntcodeResult = std::result::Result<IntcodeState, IntcodeReturnType>;
 
 impl IntcodeState {
     pub fn from(code: Memory) -> IntcodeState {
-        IntcodeState { code, index: 0, input: 0 }
+        IntcodeState {
+            code,
+            ..IntcodeState::default()
+        }
     }
     pub fn from_input(code: Memory, input: usize) -> IntcodeState {
-        IntcodeState { code, index: 0, input }
+        IntcodeState {
+            code,
+            input,
+            ..IntcodeState::default()
+        }
     }
-    fn from_all(code: Memory, index: usize, input: usize) -> IntcodeState {
-        IntcodeState { code, index, input }
+    fn from_all(code: Memory, index: usize, input: usize, output: Vec<usize>) -> IntcodeState {
+        IntcodeState {
+            code,
+            index,
+            input,
+            output,
+        }
     }
 }
 
@@ -46,6 +60,7 @@ impl ProgramState {
             1 => Ok(Running(OpMode::Add)),
             2 => Ok(Running(OpMode::Mul)),
             3 => Ok(Running(OpMode::Input)),
+            4 => Ok(Running(OpMode::Output)),
             99 => Ok(Halted),
             _ => Err(IntcodeReturnType::CodeError),
         }
@@ -57,7 +72,8 @@ impl OpMode {
         match self {
             OpMode::Add => 4,
             OpMode::Mul => 4,
-            OpMode::Input => 2
+            OpMode::Input => 2,
+            OpMode::Output => 2,
         }
     }
 
@@ -65,7 +81,8 @@ impl OpMode {
         match self {
             OpMode::Add => 3,
             OpMode::Mul => 3,
-            OpMode::Input => 1
+            OpMode::Input => 1,
+            OpMode::Output => 1,
         }
     }
 }
@@ -83,33 +100,59 @@ fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     }
 }
 
-fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
-    let code = intcode_state.code;
+fn intcode_step(mut intcode_state: IntcodeState) -> IntcodeResult {
     let index = intcode_state.index;
-    let op_mode = match ProgramState::from_usize(*code.get(index).ok_or(IntcodeReturnType::IndexError)?)? {
+
+    let op_mode = match ProgramState::from_usize(
+        *intcode_state
+            .code
+            .get(index)
+            .ok_or(IntcodeReturnType::IndexError)?,
+    )? {
         Running(op_mode) => op_mode,
-        Halted => return Err(IntcodeReturnType::Finished(IntcodeState::from_all(code, index, 0))),
+        Halted => return Err(IntcodeReturnType::Finished(intcode_state)),
     };
 
-    let new_value = match op_mode {
+    let code = intcode_state.code;
+    let new_code = match op_mode {
         OpMode::Add => {
             let operand_1 = get_value_at_index_location(&code, index + 1)?;
             let operand_2 = get_value_at_index_location(&code, index + 2)?;
-            operand_1 + operand_2
+            try_set_at_index_location(
+                code,
+                index + op_mode.result_index_offset(),
+                operand_1 + operand_2,
+            )?
         }
         OpMode::Mul => {
             let operand_1 = get_value_at_index_location(&code, index + 1)?;
             let operand_2 = get_value_at_index_location(&code, index + 2)?;
-            operand_1 * operand_2
+            try_set_at_index_location(
+                code,
+                index + op_mode.result_index_offset(),
+                operand_1 * operand_2,
+            )?
         }
         OpMode::Input => {
-            intcode_state.input
+            try_set_at_index_location(
+                code,
+                index + op_mode.result_index_offset(),
+                intcode_state.input,
+            )?
+        }
+        OpMode::Output => {
+            let output = get_value_at_index_location(&code, index + 1)?;
+            intcode_state.output.push(output);
+            code
         }
     };
 
-    let code = try_set_at_index_location(code, index + op_mode.result_index_offset(), new_value)?;
-
-    Ok(IntcodeState::from_all(code, index + op_mode.get_index_increase(), intcode_state.input))
+    Ok(IntcodeState::from_all(
+        new_code,
+        index + op_mode.get_index_increase(),
+        intcode_state.input,
+        intcode_state.output,
+    ))
 }
 
 fn get_value_at_index_location(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
@@ -150,7 +193,7 @@ mod tests {
         fn test_intcode_step_add() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1, 0, 0, 0])),
-                Ok(IntcodeState::from_all(vec![2, 0, 0, 0], 4, 0))
+                Ok(IntcodeState::from_all(vec![2, 0, 0, 0], 4, 0, vec![]))
             );
         }
 
@@ -158,7 +201,7 @@ mod tests {
         fn test_intcode_step_mul() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![2, 0, 0, 0])),
-                Ok(IntcodeState::from_all(vec![4, 0, 0, 0], 4, 0))
+                Ok(IntcodeState::from_all(vec![4, 0, 0, 0], 4, 0, vec![]))
             );
         }
 
@@ -166,7 +209,7 @@ mod tests {
         fn test_intcode_step_add_2() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1, 0, 0, 3])),
-                Ok(IntcodeState::from_all(vec![1, 0, 0, 2], 4, 0))
+                Ok(IntcodeState::from_all(vec![1, 0, 0, 2], 4, 0, vec![]))
             );
         }
 
@@ -174,7 +217,7 @@ mod tests {
         fn test_intcode_step_mul_2() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![2, 0, 0, 2])),
-                Ok(IntcodeState::from_all(vec![2, 0, 4, 2], 4, 0))
+                Ok(IntcodeState::from_all(vec![2, 0, 4, 2], 4, 0, vec![]))
             );
         }
 
@@ -206,7 +249,12 @@ mod tests {
         fn test_intcode_return() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![99, 0, 0, 5])),
-                Err(IntcodeReturnType::Finished(IntcodeState::from_all(vec![99, 0, 0, 5], 0, 0)))
+                Err(IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![99, 0, 0, 5],
+                    0,
+                    0,
+                    vec![],
+                )))
             );
         }
 
@@ -214,7 +262,20 @@ mod tests {
         fn test_intcode_step_input() {
             assert_eq!(
                 intcode_step(IntcodeState::from_input(vec![3, 0], 5)),
-                Ok(IntcodeState::from_all(vec![5, 0], 2, 5))
+                Ok(IntcodeState::from_all(vec![5, 0], 2, 5, vec![]))
+            );
+        }
+
+        #[test]
+        fn test_intcode_step_output() {
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![4, 1])),
+                Ok(IntcodeState::from_all(vec![4, 1], 2, 0, vec![1]))
+            );
+
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![4, 0])),
+                Ok(IntcodeState::from_all(vec![4, 0], 2, 0, vec![4]))
             );
         }
     }
@@ -244,26 +305,49 @@ mod tests {
                 complete_intcode(IntcodeState::from(vec![
                     1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50
                 ])),
-                IntcodeReturnType::Finished(IntcodeState::from_all(vec![
-                    3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50
-                ], 8, 0))
+                IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50],
+                    8,
+                    0,
+                    vec![],
+                ))
             );
 
             assert_eq!(
                 complete_intcode(IntcodeState::from(vec![1, 0, 0, 0, 99])),
-                IntcodeReturnType::Finished(IntcodeState::from_all(vec![2, 0, 0, 0, 99], 4, 0))
+                IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![2, 0, 0, 0, 99],
+                    4,
+                    0,
+                    vec![],
+                ))
             );
             assert_eq!(
                 complete_intcode(IntcodeState::from(vec![2, 3, 0, 3, 99])),
-                IntcodeReturnType::Finished(IntcodeState::from_all(vec![2, 3, 0, 6, 99], 4, 0))
+                IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![2, 3, 0, 6, 99],
+                    4,
+                    0,
+                    vec![],
+                ))
             );
             assert_eq!(
                 complete_intcode(IntcodeState::from(vec![2, 4, 4, 5, 99, 0])),
-                IntcodeReturnType::Finished(IntcodeState::from_all(vec![2, 4, 4, 5, 99, 9801], 4, 0))
+                IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![2, 4, 4, 5, 99, 9801],
+                    4,
+                    0,
+                    vec![],
+                ))
             );
             assert_eq!(
                 complete_intcode(IntcodeState::from(vec![1, 1, 1, 4, 99, 5, 6, 0, 99])),
-                IntcodeReturnType::Finished(IntcodeState::from_all(vec![30, 1, 1, 4, 2, 5, 6, 0, 99], 8, 0))
+                IntcodeReturnType::Finished(IntcodeState::from_all(
+                    vec![30, 1, 1, 4, 2, 5, 6, 0, 99],
+                    8,
+                    0,
+                    vec![],
+                ))
             );
         }
     }
