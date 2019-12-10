@@ -102,66 +102,75 @@ fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
 
 fn intcode_step(mut intcode_state: IntcodeState) -> IntcodeResult {
     let index = intcode_state.index;
+    let instruction_field = get_index_value(&intcode_state.code, index)?;
 
-    let op_mode = match ProgramState::from_usize(
-        *intcode_state
-            .code
-            .get(index)
-            .ok_or(IntcodeReturnType::IndexError)?,
-    )? {
+    let op_mode = match ProgramState::from_usize(instruction_field)? {
         Running(op_mode) => op_mode,
         Halted => return Err(IntcodeReturnType::Finished(intcode_state)),
     };
 
-    let code = intcode_state.code;
-    let new_code = match op_mode {
+    let new_state = process_op_mode(intcode_state, op_mode)?;
+
+    Ok(new_state)
+}
+
+fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeResult {
+    let index = intcode_state.index;
+
+    let mut new_state = match op_mode {
         OpMode::Add => {
-            let operand_1 = get_value_at_index_location(&code, index + 1)?;
-            let operand_2 = get_value_at_index_location(&code, index + 2)?;
-            try_set_at_index_location(
-                code,
+            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
+            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
+            intcode_state.code = try_set_at_index_location(
+                intcode_state.code,
                 index + op_mode.result_index_offset(),
                 operand_1 + operand_2,
-            )?
+            )?;
+
+            intcode_state
         }
         OpMode::Mul => {
-            let operand_1 = get_value_at_index_location(&code, index + 1)?;
-            let operand_2 = get_value_at_index_location(&code, index + 2)?;
-            try_set_at_index_location(
-                code,
+            let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1)?;
+            let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2)?;
+
+            intcode_state.code = try_set_at_index_location(
+                intcode_state.code,
                 index + op_mode.result_index_offset(),
                 operand_1 * operand_2,
-            )?
+            )?;
+
+            intcode_state
         }
         OpMode::Input => {
-            try_set_at_index_location(
-                code,
+            intcode_state.code = try_set_at_index_location(
+                intcode_state.code,
                 index + op_mode.result_index_offset(),
                 intcode_state.input,
-            )?
+            )?;
+
+            intcode_state
         }
         OpMode::Output => {
-            let output = get_value_at_index_location(&code, index + 1)?;
+            let output = get_value_at_index_location(&intcode_state.code, index + 1)?;
+
             intcode_state.output.push(output);
-            code
+            intcode_state
         }
     };
+    new_state.index += op_mode.get_index_increase();
+    Ok(new_state)
+}
 
-    Ok(IntcodeState::from_all(
-        new_code,
-        index + op_mode.get_index_increase(),
-        intcode_state.input,
-        intcode_state.output,
-    ))
+fn get_index_value(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
+    Ok(code
+        .get(index)
+        .ok_or(IntcodeReturnType::IndexError)?
+        .to_owned())
 }
 
 fn get_value_at_index_location(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
-    let index_1 = code
-        .get(index)
-        .ok_or(IntcodeReturnType::IndexError)?
-        .to_owned();
     Ok(code
-        .get(index_1)
+        .get(get_index_value(code, index)?)
         .ok_or(IntcodeReturnType::IndexError)?
         .to_owned())
 }
