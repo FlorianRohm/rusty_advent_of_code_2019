@@ -1,10 +1,10 @@
-use intcode::{run_instruction_set, IntcodeReturnType, Memory};
+use intcode::{run_instruction_set, IntcodeReturnType, Memory, input};
 use itertools::iproduct;
 use std::fs;
 use std::str::FromStr;
 
 fn main() {
-    let original_code = get_input_vec();
+    let original_code = input::get_input_vec("day2");
     let code = get_custom_inputs(&original_code, 12, 2);
 
     let intcode = run_instruction_set(code);
@@ -50,14 +50,4 @@ fn get_custom_inputs(memory: &Memory, noun: i32, verb: i32) -> Memory {
     new_memory[2] = verb;
 
     new_memory
-}
-
-fn get_input_vec() -> Memory {
-    let filename = "./day2/resources/input_orig";
-    let code: Memory = fs::read_to_string(filename)
-        .expect("Something went wrong reading the file")
-        .split(',')
-        .map(|line| usize::from_str(line).expect("Parsing error"))
-        .collect();
-    code
 }

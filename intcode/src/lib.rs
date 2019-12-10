@@ -3,6 +3,8 @@ use crate::ParamMode::{Immediate, Position};
 use crate::ProgramState::{Halted, Running};
 use std::convert::{TryFrom, TryInto};
 
+pub mod input;
+
 #[derive(Debug, PartialEq)]
 pub enum IntcodeReturnType {
     CodeError,
@@ -85,8 +87,7 @@ impl ProgramState {
         n = n / 10;
         let second_param = ParamMode::try_from(n % 10)?;
         n = n / 10;
-        let third_param = ParamMode::try_from(n % 10)?;
-        n = n / 10;
+        let _third_param = ParamMode::try_from(n % 10)?;
 
         match op_mode {
             1 => Ok(Running(OpMode::Add(first_param, second_param))),
@@ -123,6 +124,11 @@ pub fn run_instruction_set(memory: Memory) -> IntcodeReturnType {
     complete_intcode(IntcodeState::from(memory))
 }
 
+
+pub fn run_instruction_set_with_input(memory: Memory, input: i32) -> IntcodeReturnType {
+    complete_intcode(IntcodeState::from_input(memory, input))
+}
+
 fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     loop {
         intcode_state = match intcode_step(intcode_state) {
@@ -132,7 +138,7 @@ fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     }
 }
 
-fn intcode_step(mut intcode_state: IntcodeState) -> IntcodeResult {
+fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
     let index = intcode_state.index;
     let instruction_field = get_index_value(&intcode_state.code, index)?;
 
