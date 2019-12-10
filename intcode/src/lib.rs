@@ -100,26 +100,6 @@ impl ProgramState {
     }
 }
 
-impl OpMode {
-    fn get_index_increase(&self) -> usize {
-        match self {
-            OpMode::Add(_, _) => 4,
-            OpMode::Mul(_, _) => 4,
-            OpMode::Input => 2,
-            OpMode::Output(_) => 2,
-        }
-    }
-
-    fn result_index_offset(&self) -> usize {
-        match self {
-            OpMode::Add(_, _) => 3,
-            OpMode::Mul(_, _) => 3,
-            OpMode::Input => 1,
-            OpMode::Output(_) => 1,
-        }
-    }
-}
-
 pub fn run_instruction_set(memory: Memory) -> IntcodeReturnType {
     complete_intcode(IntcodeState::from(memory))
 }
@@ -155,15 +135,16 @@ fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
 fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeResult {
     let index = intcode_state.index;
 
-    let mut new_state = match op_mode {
+    let new_state = match op_mode {
         OpMode::Add(ref mode_1, ref mode_2) => {
             let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1, mode_1)?;
             let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2, mode_2)?;
             intcode_state.code = try_set_at_index_location(
                 intcode_state.code,
-                index + op_mode.result_index_offset(),
+                index + 3,
                 operand_1 + operand_2,
             )?;
+            intcode_state.index += 4;
 
             intcode_state
         }
@@ -173,18 +154,20 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state.code = try_set_at_index_location(
                 intcode_state.code,
-                index + op_mode.result_index_offset(),
+                index + 3,
                 operand_1 * operand_2,
             )?;
-
+            intcode_state.index += 4;
             intcode_state
+
         }
         OpMode::Input => {
             intcode_state.code = try_set_at_index_location(
                 intcode_state.code,
-                index + op_mode.result_index_offset(),
+                index + 1,
                 intcode_state.input,
             )?;
+            intcode_state.index += 2;
 
             intcode_state
         }
@@ -192,10 +175,12 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
             let output = get_value_at_index_location(&intcode_state.code, index + 1, mode)?;
 
             intcode_state.output.push(output);
+            intcode_state.index += 2;
+
             intcode_state
         }
     };
-    new_state.index += op_mode.get_index_increase();
+
     Ok(new_state)
 }
 
