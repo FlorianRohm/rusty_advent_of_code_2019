@@ -1,7 +1,7 @@
 use itertools::iproduct;
 use std::fs;
 use std::str::FromStr;
-use intcode::{IntcodeState, run_instruction_set, Memory, IntcodeReturnType};
+use intcode::{run_instruction_set, Memory, IntcodeReturnType};
 
 fn main() {
     let original_code = get_input_vec();
