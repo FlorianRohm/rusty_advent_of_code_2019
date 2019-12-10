@@ -1,4 +1,5 @@
 use crate::ProgramState::{Halted, Running};
+use std::convert::TryInto;
 
 #[derive(Debug, PartialEq)]
 pub enum IntcodeReturnType {
@@ -11,8 +12,8 @@ pub enum IntcodeReturnType {
 pub struct IntcodeState {
     pub code: Memory,
     index: usize,
-    input: usize,
-    pub output: Vec<usize>,
+    input: i32,
+    pub output: Vec<i32>,
 }
 
 enum ProgramState {
@@ -27,7 +28,7 @@ enum OpMode {
     Output,
 }
 
-pub type Memory = Vec<usize>;
+pub type Memory = Vec<i32>;
 pub type IntcodeResult = std::result::Result<IntcodeState, IntcodeReturnType>;
 
 impl IntcodeState {
@@ -37,14 +38,14 @@ impl IntcodeState {
             ..IntcodeState::default()
         }
     }
-    pub fn from_input(code: Memory, input: usize) -> IntcodeState {
+    pub fn from_input(code: Memory, input: i32) -> IntcodeState {
         IntcodeState {
             code,
             input,
             ..IntcodeState::default()
         }
     }
-    fn from_all(code: Memory, index: usize, input: usize, output: Vec<usize>) -> IntcodeState {
+    fn from_all(code: Memory, index: usize, input: i32, output: Vec<i32>) -> IntcodeState {
         IntcodeState {
             code,
             index,
@@ -55,7 +56,7 @@ impl IntcodeState {
 }
 
 impl ProgramState {
-    fn from_usize(input: usize) -> Result<Self, IntcodeReturnType> {
+    fn from_memory_location(input: i32) -> Result<Self, IntcodeReturnType> {
         match input {
             1 => Ok(Running(OpMode::Add)),
             2 => Ok(Running(OpMode::Mul)),
@@ -104,7 +105,7 @@ fn intcode_step(mut intcode_state: IntcodeState) -> IntcodeResult {
     let index = intcode_state.index;
     let instruction_field = get_index_value(&intcode_state.code, index)?;
 
-    let op_mode = match ProgramState::from_usize(instruction_field)? {
+    let op_mode = match ProgramState::from_memory_location(instruction_field)? {
         Running(op_mode) => op_mode,
         Halted => return Err(IntcodeReturnType::Finished(intcode_state)),
     };
@@ -161,29 +162,31 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
     Ok(new_state)
 }
 
-fn get_index_value(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
+fn get_index_value(code: &Memory, index: usize) -> Result<i32, IntcodeReturnType> {
     Ok(code
         .get(index)
         .ok_or(IntcodeReturnType::IndexError)?
         .to_owned())
 }
 
-fn get_value_at_index_location(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
-    Ok(code
-        .get(get_index_value(code, index)?)
-        .ok_or(IntcodeReturnType::IndexError)?
-        .to_owned())
+fn get_value_at_index_location(code: &Memory, index: usize) -> Result<i32, IntcodeReturnType> {
+    let i: usize = get_index_value(code, index)?
+        .try_into()
+        .map_err(|_| IntcodeReturnType::IndexError)?;
+
+    Ok(code.get(i).ok_or(IntcodeReturnType::IndexError)?.to_owned())
 }
 
 fn try_set_at_index_location(
     mut code: Memory,
     index: usize,
-    value: usize,
+    value: i32,
 ) -> Result<Memory, IntcodeReturnType> {
-    let target_index = code
+    let target_index:usize = code
         .get(index)
         .ok_or(IntcodeReturnType::IndexError)?
-        .to_owned();
+        .to_owned().try_into()
+        .map_err(|_| IntcodeReturnType::IndexError)?;
     code.get(target_index)
         .ok_or(IntcodeReturnType::IndexError)?;
     code[target_index] = value;
@@ -285,6 +288,19 @@ mod tests {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![4, 0])),
                 Ok(IntcodeState::from_all(vec![4, 0], 2, 0, vec![4]))
+            );
+        }
+
+        //#[test]
+        fn test_intcode_step_parameter_mode() {
+            assert_eq!(
+                intcode_step(IntcodeState::from(vec![1002, 4, 3, 4, 33])),
+                Ok(IntcodeState::from_all(
+                    vec![1002, 4, 3, 4, 99],
+                    4,
+                    0,
+                    vec![]
+                ))
             );
         }
     }
