@@ -1,6 +1,6 @@
+use itertools::iproduct;
 use std::fs;
 use std::str::FromStr;
-use itertools::iproduct;
 
 #[derive(Debug, PartialEq)]
 enum IntcodeReturnType {
@@ -43,7 +43,7 @@ impl OpMode {
             1 => Ok(OpMode::Add),
             2 => Ok(OpMode::Mul),
             99 => Ok(OpMode::Terminate),
-            _ => Err(IntcodeReturnType::CodeError)
+            _ => Err(IntcodeReturnType::CodeError),
         }
     }
 }
@@ -58,8 +58,10 @@ fn main() {
 
     println!("Intcode Return: {:?}", intcode);
 
-    let valid_values: Vec<usize> = find_inputs_for(&original_code, 19_690_720).iter()
-        .map(|(noun, verb)| 100 * noun + verb).collect();
+    let valid_values: Vec<usize> = find_inputs_for(&original_code, 19_690_720)
+        .iter()
+        .map(|(noun, verb)| 100 * noun + verb)
+        .collect();
 
     println!("valid inputs are: {:?}", valid_values)
 }
@@ -72,14 +74,16 @@ fn find_inputs_for(memory: &Memory, wanted_output: usize) -> Vec<(usize, usize)>
         let intcode = complete_intcode(IntcodeState::from(code));
 
         match intcode {
-            IntcodeReturnType::CodeError => { continue; },
-            IntcodeReturnType::IndexError => { continue },
+            IntcodeReturnType::CodeError => {
+                continue;
+            }
+            IntcodeReturnType::IndexError => continue,
             IntcodeReturnType::Finished(state) => {
                 let output = state.code[0];
                 if output == wanted_output {
                     valid_values.push((noun, verb))
                 }
-            },
+            }
         }
     }
 
@@ -105,12 +109,11 @@ fn get_input_vec() -> Memory {
     code
 }
 
-
 fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     loop {
         intcode_state = match intcode_step(intcode_state) {
             Ok(t) => t,
-            Err(return_type) => return return_type
+            Err(return_type) => return return_type,
         };
     }
 }
@@ -126,7 +129,7 @@ fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
             let operand_1 = get_value_at_index_location(&code, index + 1)?;
             let operand_2 = get_value_at_index_location(&code, index + 2)?;
             operand_1 + operand_2
-        },
+        }
         OpMode::Mul => {
             let operand_1 = get_value_at_index_location(&code, index + 1)?;
             let operand_2 = get_value_at_index_location(&code, index + 2)?;
@@ -136,22 +139,38 @@ fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
 
     let code = try_set_at_index_location(code, index + 3, new_value)?;
 
-    Ok(IntcodeState { code, index: index + op_mode.to_index_increase() })
+    Ok(IntcodeState {
+        code,
+        index: index + op_mode.to_index_increase(),
+    })
 }
 
 fn get_value_at_index_location(code: &Memory, index: usize) -> Result<usize, IntcodeReturnType> {
-    let index_1 = code.get(index).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-    Ok(code.get(index_1).ok_or(IntcodeReturnType::IndexError)?.to_owned())
+    let index_1 = code
+        .get(index)
+        .ok_or(IntcodeReturnType::IndexError)?
+        .to_owned();
+    Ok(code
+        .get(index_1)
+        .ok_or(IntcodeReturnType::IndexError)?
+        .to_owned())
 }
 
-fn try_set_at_index_location(mut code: Memory, index: usize, value: usize) -> Result<Memory, IntcodeReturnType> {
-    let target_index = code.get(index).ok_or(IntcodeReturnType::IndexError)?.to_owned();
-    code.get(target_index).ok_or(IntcodeReturnType::IndexError)?;
+fn try_set_at_index_location(
+    mut code: Memory,
+    index: usize,
+    value: usize,
+) -> Result<Memory, IntcodeReturnType> {
+    let target_index = code
+        .get(index)
+        .ok_or(IntcodeReturnType::IndexError)?
+        .to_owned();
+    code.get(target_index)
+        .ok_or(IntcodeReturnType::IndexError)?;
     code[target_index] = value;
 
     Ok(code)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -162,43 +181,105 @@ mod tests {
 
         #[test]
         fn test_intcode_step_add() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![1, 0, 0, 0], index: 0 }), Ok(IntcodeState { code: vec![2, 0, 0, 0], index: 4 }));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![1, 0, 0, 0],
+                    index: 0,
+                }),
+                Ok(IntcodeState {
+                    code: vec![2, 0, 0, 0],
+                    index: 4,
+                })
+            );
         }
 
         #[test]
         fn test_intcode_step_mul() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![2, 0, 0, 0], index: 0 }), Ok(IntcodeState { code: vec![4, 0, 0, 0], index: 4 }));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![2, 0, 0, 0],
+                    index: 0,
+                }),
+                Ok(IntcodeState {
+                    code: vec![4, 0, 0, 0],
+                    index: 4,
+                })
+            );
         }
 
         #[test]
         fn test_intcode_step_add_2() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![1, 0, 0, 3], index: 0 }), Ok(IntcodeState { code: vec![1, 0, 0, 2], index: 4 }));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![1, 0, 0, 3],
+                    index: 0,
+                }),
+                Ok(IntcodeState {
+                    code: vec![1, 0, 0, 2],
+                    index: 4,
+                })
+            );
         }
 
         #[test]
         fn test_intcode_step_mul_2() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![2, 0, 0, 2], index: 0 }), Ok(IntcodeState { code: vec![2, 0, 4, 2], index: 4 }));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![2, 0, 0, 2],
+                    index: 0,
+                }),
+                Ok(IntcodeState {
+                    code: vec![2, 0, 4, 2],
+                    index: 4,
+                })
+            );
         }
-
 
         #[test]
         fn test_intcode_step_err_index_1() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![1, 5, 0, 1], index: 0 }), Err(IntcodeReturnType::IndexError));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![1, 5, 0, 1],
+                    index: 0,
+                }),
+                Err(IntcodeReturnType::IndexError)
+            );
         }
 
         #[test]
         fn test_intcode_step_err_index_2() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![1, 0, 5, 1], index: 0 }), Err(IntcodeReturnType::IndexError));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![1, 0, 5, 1],
+                    index: 0,
+                }),
+                Err(IntcodeReturnType::IndexError)
+            );
         }
 
         #[test]
         fn test_intcode_step_err_index_3() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![1, 0, 0, 5], index: 0 }), Err(IntcodeReturnType::IndexError));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![1, 0, 0, 5],
+                    index: 0,
+                }),
+                Err(IntcodeReturnType::IndexError)
+            );
         }
 
         #[test]
         fn test_intcode_return() {
-            assert_eq!(intcode_step(IntcodeState { code: vec![99, 0, 0, 5], index: 0 }), Err(IntcodeReturnType::Finished(IntcodeState { code: vec![99, 0, 0, 5], index: 0 })));
+            assert_eq!(
+                intcode_step(IntcodeState {
+                    code: vec![99, 0, 0, 5],
+                    index: 0,
+                }),
+                Err(IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![99, 0, 0, 5],
+                    index: 0,
+                }))
+            );
         }
     }
 
@@ -207,24 +288,79 @@ mod tests {
 
         #[test]
         fn test_intcode_index_error_1() {
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 0, 0, 0], index: 0 }), IntcodeReturnType::IndexError);
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![1, 0, 0, 0],
+                    index: 0,
+                }),
+                IntcodeReturnType::IndexError
+            );
         }
 
         #[test]
         fn test_intcode_index_error_2() {
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 0, 0, 0, 1, 34, 4, 5], index: 0 }), IntcodeReturnType::IndexError);
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![1, 0, 0, 0, 1, 34, 4, 5],
+                    index: 0,
+                }),
+                IntcodeReturnType::IndexError
+            );
         }
-
 
         #[test]
         fn test_intcode_website() {
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50], index: 0 }),
-                       IntcodeReturnType::Finished(IntcodeState { code: vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50], index: 8 }));
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50],
+                    index: 0,
+                }),
+                IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50],
+                    index: 8,
+                })
+            );
 
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 0, 0, 0, 99], index: 0 }), IntcodeReturnType::Finished(IntcodeState { code: vec![2, 0, 0, 0, 99], index: 4 }));
-            assert_eq!(complete_intcode(IntcodeState { code: vec![2, 3, 0, 3, 99], index: 0 }), IntcodeReturnType::Finished(IntcodeState { code: vec![2, 3, 0, 6, 99], index: 4 }));
-            assert_eq!(complete_intcode(IntcodeState { code: vec![2, 4, 4, 5, 99, 0], index: 0 }), IntcodeReturnType::Finished(IntcodeState { code: vec![2, 4, 4, 5, 99, 9801], index: 4 }));
-            assert_eq!(complete_intcode(IntcodeState { code: vec![1, 1, 1, 4, 99, 5, 6, 0, 99], index: 0 }), IntcodeReturnType::Finished(IntcodeState { code: vec![30, 1, 1, 4, 2, 5, 6, 0, 99], index: 8 }));
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![1, 0, 0, 0, 99],
+                    index: 0,
+                }),
+                IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![2, 0, 0, 0, 99],
+                    index: 4,
+                })
+            );
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![2, 3, 0, 3, 99],
+                    index: 0,
+                }),
+                IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![2, 3, 0, 6, 99],
+                    index: 4,
+                })
+            );
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![2, 4, 4, 5, 99, 0],
+                    index: 0,
+                }),
+                IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![2, 4, 4, 5, 99, 9801],
+                    index: 4,
+                })
+            );
+            assert_eq!(
+                complete_intcode(IntcodeState {
+                    code: vec![1, 1, 1, 4, 99, 5, 6, 0, 99],
+                    index: 0,
+                }),
+                IntcodeReturnType::Finished(IntcodeState {
+                    code: vec![30, 1, 1, 4, 2, 5, 6, 0, 99],
+                    index: 8,
+                })
+            );
         }
     }
 }
