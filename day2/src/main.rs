@@ -1,4 +1,4 @@
-use intcode::{run_instruction_set, IntcodeReturnType, Memory, input};
+use intcode::{input, run_instruction_set, IntcodeReturnType, Memory};
 use itertools::iproduct;
 use std::fs;
 use std::str::FromStr;
