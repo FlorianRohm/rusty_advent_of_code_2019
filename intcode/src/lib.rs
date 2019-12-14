@@ -149,10 +149,10 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
     let new_state = match op_mode {
         OpMode::Add(mode_1, mode_2) => {
-            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| a+b)?
+            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| a + b)?
         }
         OpMode::Mul(mode_1, mode_2) => {
-            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| a*b)?
+            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| a * b)?
         }
         OpMode::Input => {
             intcode_state.code =
@@ -194,18 +194,29 @@ fn process_op_mode(mut intcode_state: IntcodeState, op_mode: OpMode) -> IntcodeR
 
             intcode_state
         }
-        OpMode::LessThan(mode_1, mode_2) => {
-            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| if a < b { 1 } else { 0 })?
-        }
-        OpMode::Equals(mode_1, mode_2) => {
-            op_modes_3_inputs(intcode_state, mode_1, mode_2, |a, b| if a == b { 1 } else { 0 })?
-        }
+        OpMode::LessThan(mode_1, mode_2) => op_modes_3_inputs(
+            intcode_state,
+            mode_1,
+            mode_2,
+            |a, b| if a < b { 1 } else { 0 },
+        )?,
+        OpMode::Equals(mode_1, mode_2) => op_modes_3_inputs(
+            intcode_state,
+            mode_1,
+            mode_2,
+            |a, b| if a == b { 1 } else { 0 },
+        )?,
     };
 
     Ok(new_state)
 }
 
-fn op_modes_3_inputs(mut intcode_state: IntcodeState, mode_1: ParamMode, mode_2: ParamMode, operation: impl Fn(i32, i32) -> i32) -> IntcodeResult {
+fn op_modes_3_inputs(
+    mut intcode_state: IntcodeState,
+    mode_1: ParamMode,
+    mode_2: ParamMode,
+    operation: impl Fn(i32, i32) -> i32,
+) -> IntcodeResult {
     let index = intcode_state.index;
     let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1, &mode_1)?;
     let operand_2 = get_value_at_index_location(&intcode_state.code, index + 2, &mode_2)?;
@@ -274,7 +285,6 @@ mod tests {
             }
         }
     }
-
 
     mod test_step {
         use super::*;
@@ -403,12 +413,16 @@ mod tests {
             );
         }
 
-
         #[test]
         fn test_intcode_step_jump_if_not_0_ok() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1105, 1, 5, 4, 33])),
-                Ok(IntcodeState::from_all(vec![1105, 1, 5, 4, 33], 5, 0, vec![]))
+                Ok(IntcodeState::from_all(
+                    vec![1105, 1, 5, 4, 33],
+                    5,
+                    0,
+                    vec![]
+                ))
             );
         }
 
@@ -416,16 +430,25 @@ mod tests {
         fn test_intcode_step_jump_if_not_0_not() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1105, 0, 3, 4, 33])),
-                Ok(IntcodeState::from_all(vec![1105, 0, 3, 4, 33], 3, 0, vec![]))
+                Ok(IntcodeState::from_all(
+                    vec![1105, 0, 3, 4, 33],
+                    3,
+                    0,
+                    vec![]
+                ))
             );
         }
-
 
         #[test]
         fn test_intcode_step_jump_if_0_not() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1106, 1, 3, 4, 33])),
-                Ok(IntcodeState::from_all(vec![1106, 1, 3, 4, 33], 3, 0, vec![]))
+                Ok(IntcodeState::from_all(
+                    vec![1106, 1, 3, 4, 33],
+                    3,
+                    0,
+                    vec![]
+                ))
             );
         }
 
@@ -433,7 +456,12 @@ mod tests {
         fn test_intcode_step_jump_if_0_ok() {
             assert_eq!(
                 intcode_step(IntcodeState::from(vec![1106, 0, 5, 4, 33])),
-                Ok(IntcodeState::from_all(vec![1106, 0, 5, 4, 33], 5, 0, vec![]))
+                Ok(IntcodeState::from_all(
+                    vec![1106, 0, 5, 4, 33],
+                    5,
+                    0,
+                    vec![]
+                ))
             );
         }
 
@@ -570,8 +598,8 @@ mod tests {
         #[test]
         fn test_intcodes_day5_jumps() {
             // Here are some jump tests that take an input, then output 0 if the input was zero or 1 if the input was non-zero:
-            let input = || vec![3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9];
-            let input_2 = || vec![3,3,1105,-1,9,1101,0,0,12,4,12,99,1];
+            let input = || vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9];
+            let input_2 = || vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
 
             test_for_output(
                 complete_intcode(IntcodeState::from_input(input(), 0)),
@@ -581,7 +609,6 @@ mod tests {
                 complete_intcode(IntcodeState::from_input(input_2(), 0)),
                 vec![0],
             );
-
 
             test_for_output(
                 complete_intcode(IntcodeState::from_input(input(), 5)),
@@ -596,9 +623,13 @@ mod tests {
         #[test]
         fn test_intcodes_day5_big() {
             // Here are some jump tests that take an input, then output 0 if the input was zero or 1 if the input was non-zero:
-            let input = || vec![3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,
-                                1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,
-                                999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99];
+            let input = || {
+                vec![
+                    3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0,
+                    36, 98, 0, 0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46,
+                    1101, 1000, 1, 20, 4, 20, 1105, 1, 46, 98, 99,
+                ]
+            };
 
             test_for_output(
                 complete_intcode(IntcodeState::from_input(input(), 0)),
