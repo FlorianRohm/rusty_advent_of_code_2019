@@ -88,9 +88,8 @@ fn get_number_of_orbits(sorted_orbit_points: Vec<(String, String)>) -> usize {
 }
 
 fn sort(unsorted_vec: Vec<(String, String)>) -> Vec<(String, String)> {
-    let (mut sorted, mut unsorted): (Vec<(String, String)>, Vec<(String, String)>) = unsorted_vec
-        .into_iter()
-        .partition(|(orb, _)| orb == "COM");
+    let (mut sorted, mut unsorted): (Vec<(String, String)>, Vec<(String, String)>) =
+        unsorted_vec.into_iter().partition(|(orb, _)| orb == "COM");
 
     loop {
         let (mut known_batch, unknown): (Vec<(String, String)>, Vec<(String, String)>) = unsorted

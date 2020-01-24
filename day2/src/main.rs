@@ -1,7 +1,5 @@
 use intcode::{input, run_instruction_set, IntcodeReturnType, Memory};
 use itertools::iproduct;
-use std::fs;
-use std::str::FromStr;
 
 fn main() {
     let original_code = input::get_input_vec("day2");
@@ -36,6 +34,9 @@ fn find_inputs_for(memory: &Memory, wanted_output: i32) -> Vec<(i32, i32)> {
                 if output == wanted_output {
                     valid_values.push((noun, verb))
                 }
+            }
+            IntcodeReturnType::Interrupted(_) => {
+                unreachable!("day two does not have interrupts");
             }
         }
     }

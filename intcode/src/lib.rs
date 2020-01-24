@@ -1,6 +1,6 @@
 use crate::IntcodeReturnType::CodeError;
 use crate::ParamMode::{Immediate, Position};
-use crate::ProgramState::{Halted, Running};
+use crate::ProgramState::{Halted, Interrupted, Running};
 use std::convert::{TryFrom, TryInto};
 
 pub mod input;
@@ -10,19 +10,34 @@ pub enum IntcodeReturnType {
     CodeError,
     IndexError,
     Finished(IntcodeState),
+    Interrupted(IntcodeState),
+}
+
+impl IntcodeReturnType {
+    pub fn resume_with_input(self, input: i32) -> IntcodeReturnType {
+        if let IntcodeReturnType::Interrupted(mut state) = self {
+            state.input = input;
+            state.resume = true;
+            complete_intcode(state)
+        } else {
+            panic!("resume only on Interrupted state, used on {:?}", self)
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Default)]
 pub struct IntcodeState {
     pub code: Memory,
     index: usize,
-    input: i32,
+    pub input: i32,
     pub output: Vec<i32>,
+    resume: bool,
 }
 
 enum ProgramState {
     Running(OpMode),
     Halted,
+    Interrupted(OpMode),
 }
 
 enum ParamMode {
@@ -51,11 +66,20 @@ impl IntcodeState {
             ..IntcodeState::default()
         }
     }
-    pub fn from_input(code: Memory, input: i32) -> IntcodeState {
+    pub fn with_next_input(code: Memory, input: i32) -> IntcodeState {
         IntcodeState {
             code,
             input,
+            resume: true,
             ..IntcodeState::default()
+        }
+    }
+
+    pub fn set_next_input(self, input: i32) -> IntcodeState {
+        IntcodeState {
+            resume: true,
+            input,
+            ..self
         }
     }
 }
@@ -101,7 +125,7 @@ impl ProgramState {
         match op_mode {
             1 => Ok(Running(Add(first_param, second_param))),
             2 => Ok(Running(Mul(first_param, second_param))),
-            3 => Ok(Running(Input)),
+            3 => Ok(Interrupted(Input)),
             4 => Ok(Running(Output(first_param))),
             5 => Ok(Running(JumpIfTrue(first_param, second_param))),
             6 => Ok(Running(JumpIfFalse(first_param, second_param))),
@@ -118,7 +142,7 @@ pub fn run_instruction_set(memory: Memory) -> IntcodeReturnType {
 }
 
 pub fn run_instruction_set_with_input(memory: Memory, input: i32) -> IntcodeReturnType {
-    complete_intcode(IntcodeState::from_input(memory, input))
+    complete_intcode(IntcodeState::with_next_input(memory, input))
 }
 
 fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
@@ -130,13 +154,21 @@ fn complete_intcode(mut intcode_state: IntcodeState) -> IntcodeReturnType {
     }
 }
 
-fn intcode_step(intcode_state: IntcodeState) -> IntcodeResult {
+fn intcode_step(mut intcode_state: IntcodeState) -> IntcodeResult {
     let index = intcode_state.index;
     let instruction_field = get_index_value(&intcode_state.code, index)?;
 
     let op_mode = match ProgramState::from_memory_location(instruction_field)? {
         Running(op_mode) => op_mode,
         Halted => return Err(IntcodeReturnType::Finished(intcode_state)),
+        Interrupted(op_mode) => {
+            if intcode_state.resume {
+                intcode_state.resume = false;
+                op_mode
+            } else {
+                return Err(IntcodeReturnType::Interrupted(intcode_state));
+            }
+        }
     };
 
     let new_state = process_op_mode(intcode_state, op_mode)?;
@@ -282,6 +314,7 @@ mod tests {
                 index,
                 input,
                 output,
+                resume: false,
             }
         }
     }
@@ -361,8 +394,23 @@ mod tests {
         #[test]
         fn test_intcode_step_input() {
             assert_eq!(
-                intcode_step(IntcodeState::from_input(vec![3, 0], 5)),
+                intcode_step(IntcodeState::with_next_input(vec![3, 0], 5)),
                 Ok(IntcodeState::from_all(vec![5, 0], 2, 5, vec![]))
+            );
+        }
+
+        #[test]
+        fn test_intcode_step_input_continue() {
+            let mut intcode = IntcodeState::with_next_input(vec![3, 0], 5);
+            intcode.resume = false;
+            assert_eq!(
+                intcode_step(intcode),
+                Err(IntcodeReturnType::Interrupted(IntcodeState::from_all(
+                    vec![3, 0],
+                    0,
+                    5,
+                    vec![]
+                )))
             );
         }
 
@@ -555,42 +603,42 @@ mod tests {
             // Using position mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not)
             let input_equal_8 = || vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8];
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_equal_8(), 8)),
+                complete_intcode(IntcodeState::with_next_input(input_equal_8(), 8)),
                 vec![1],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_equal_8(), 9)),
+                complete_intcode(IntcodeState::with_next_input(input_equal_8(), 9)),
                 vec![0],
             );
             // Using position mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
             let input_less_than_8 = || vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8];
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_less_than_8(), 9)),
+                complete_intcode(IntcodeState::with_next_input(input_less_than_8(), 9)),
                 vec![0],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_less_than_8(), 5)),
+                complete_intcode(IntcodeState::with_next_input(input_less_than_8(), 5)),
                 vec![1],
             );
 
             // Using immediate mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
             let input_equal_8 = || vec![3, 3, 1108, -1, 8, 3, 4, 3, 99];
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_equal_8(), 8)),
+                complete_intcode(IntcodeState::with_next_input(input_equal_8(), 8)),
                 vec![1],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_equal_8(), 9)),
+                complete_intcode(IntcodeState::with_next_input(input_equal_8(), 9)),
                 vec![0],
             );
             // Using immediate mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
             let input_less_than_8 = || vec![3, 3, 1107, -1, 8, 3, 4, 3, 99];
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_less_than_8(), 9)),
+                complete_intcode(IntcodeState::with_next_input(input_less_than_8(), 9)),
                 vec![0],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_less_than_8(), 5)),
+                complete_intcode(IntcodeState::with_next_input(input_less_than_8(), 5)),
                 vec![1],
             );
         }
@@ -602,20 +650,20 @@ mod tests {
             let input_2 = || vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
 
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input(), 0)),
+                complete_intcode(IntcodeState::with_next_input(input(), 0)),
                 vec![0],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_2(), 0)),
+                complete_intcode(IntcodeState::with_next_input(input_2(), 0)),
                 vec![0],
             );
 
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input(), 5)),
+                complete_intcode(IntcodeState::with_next_input(input(), 5)),
                 vec![1],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input_2(), 7)),
+                complete_intcode(IntcodeState::with_next_input(input_2(), 7)),
                 vec![1],
             );
         }
@@ -632,15 +680,15 @@ mod tests {
             };
 
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input(), 0)),
+                complete_intcode(IntcodeState::with_next_input(input(), 0)),
                 vec![999],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input(), 8)),
+                complete_intcode(IntcodeState::with_next_input(input(), 8)),
                 vec![1000],
             );
             test_for_output(
-                complete_intcode(IntcodeState::from_input(input(), 9)),
+                complete_intcode(IntcodeState::with_next_input(input(), 9)),
                 vec![1001],
             );
         }

@@ -167,12 +167,6 @@ fn instructions_string_to_distance_steps(line1: &str, line2: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    impl LineStep {
-        fn complete_equal(&self, other: &Self) -> bool {
-            self.x == other.x && self.y == other.y && self.step_nr == other.step_nr
-        }
-    }
-
     use super::*;
     use std::iter::FromIterator;
 
