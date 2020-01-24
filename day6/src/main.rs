@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 
 fn main() {
@@ -6,13 +6,13 @@ fn main() {
     let string = fs::read_to_string(filename).expect("Something went wrong reading the file");
     let orbit_points: Vec<(String, String)> = string.lines().map(parse_line).collect();
 
-    let orbit_points = sort(input);
-    let number = get_number_of_orbits(orbit_points.copy());
+    let orbit_points = sort(orbit_points);
+    let number = get_number_of_orbits(orbit_points.clone());
     println!("number of orbits {}", number);
 
-    let (number_of_swaps, path) = get_path_to_santa(orbit_points);
+    let number_of_swaps = get_distance_to_santa(orbit_points);
 
-    println!("number of swaps {} along path {}", number_of_swaps, path);
+    println!("number of swaps {} ", number_of_swaps);
 }
 
 fn parse_line(line: &str) -> (String, String) {
@@ -30,7 +30,36 @@ fn parse_line(line: &str) -> (String, String) {
     (one, two)
 }
 
-fn get_path_to_santa(orbit_points: Vec<(String, String)>) -> (usize, Vec<String>) {}
+fn get_distance_to_santa(orbit_points: Vec<(String, String)>) -> usize {
+    let mut iterations = 0;
+    let santa = "SAN";
+
+    let us: String = "YOU".into();
+    let mut known = HashSet::new();
+    let mut unreached: Vec<(String, String)> = orbit_points;
+    known.insert(us);
+
+    loop {
+        iterations += 1;
+        let (next_destinations, still_unreached): (Vec<(String, String)>, Vec<(String, String)>) =
+            unreached
+                .into_iter()
+                .partition(|(orb, planet)| known.contains(orb) || known.contains(planet));
+        unreached = still_unreached;
+
+        for (orb, planet) in next_destinations.into_iter() {
+            known.insert(orb);
+            known.insert(planet);
+        }
+
+        if known.contains(santa) {
+            break;
+        }
+    }
+
+    // subtract two as we travel from our place to the first planet and from the last planet to santa
+    iterations - 2
+}
 
 fn insert_into_map(
     mut map: HashMap<String, usize>,
@@ -61,7 +90,7 @@ fn get_number_of_orbits(sorted_orbit_points: Vec<(String, String)>) -> usize {
 fn sort(unsorted_vec: Vec<(String, String)>) -> Vec<(String, String)> {
     let (mut sorted, mut unsorted): (Vec<(String, String)>, Vec<(String, String)>) = unsorted_vec
         .into_iter()
-        .partition(|(orb, planet)| orb == "COM");
+        .partition(|(orb, _)| orb == "COM");
 
     loop {
         let (mut known_batch, unknown): (Vec<(String, String)>, Vec<(String, String)>) = unsorted
@@ -202,12 +231,8 @@ mod tests {
             ("I".into(), "SAN".into()),
         ];
 
-        let (number, path) = get_path_to_santa(sort(input));
+        let number = get_distance_to_santa(sort(input));
 
         assert_eq!(number, 4);
-        assert_eq!(
-            path,
-            vec!["K".into(), "J".into(), "E".into(), "D".into(), "I".into()]
-        );
     }
 }
