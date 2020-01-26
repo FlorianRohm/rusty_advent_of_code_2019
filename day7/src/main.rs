@@ -12,12 +12,12 @@ fn main() {
         .max_by(|(_, r1), (_, r2)| r1.cmp(r2))
         .unwrap();
 
-    print!(
+    println!(
         "Maximal thrust is at {}, reached with {:?}",
         max_thrust, optimal_perm
     );
 
-    let mut data = [5,6,7,8,9];
+    let mut data = [5, 6, 7, 8, 9];
     let heap = Heap::new(&mut data);
 
     let (optimal_perm_amp, max_thrust_amp) = heap
@@ -25,7 +25,7 @@ fn main() {
         .max_by(|(_, r1), (_, r2)| r1.cmp(r2))
         .unwrap();
 
-    print!(
+    println!(
         "Maximal amplified thrust is at {}, reached with {:?}",
         max_thrust_amp, optimal_perm_amp
     );
@@ -33,71 +33,90 @@ fn main() {
 
 fn run_settings(settings: [i64; 5], code: &Memory) -> i64 {
     let return_type = step(settings[0], 0, code.to_owned());
-    let (next_code, _) = get_output(return_type);
+    let next_code = get_output(&return_type);
 
     let return_type = step(settings[1], next_code, code.to_owned());
-    let (next_code, _) = get_output(return_type);
+    let next_code = get_output(&return_type);
 
     let return_type = step(settings[2], next_code, code.to_owned());
-    let (next_code, _) = get_output(return_type);
+    let next_code = get_output(&return_type);
 
     let return_type = step(settings[3], next_code, code.to_owned());
-    let (next_code, _) = get_output(return_type);
+    let next_code = get_output(&return_type);
 
     let return_type = step(settings[4], next_code, code.to_owned());
-    get_output(return_type).0
+    get_output(&return_type)
 }
 
-
 fn run_settings_until_halt(settings: [i64; 5], code: &Memory) -> i64 {
-    let mut first_input = 0;
-    let mut amp_0_code = code.to_owned();
-    let mut amp_1_code = code.to_owned();
-    let mut amp_2_code = code.to_owned();
-    let mut amp_3_code = code.to_owned();
-    let mut amp_4_code = code.to_owned();
+    let first_input = 0;
+
+    let mut intcode_ret_0 = run_instruction_set_with_input(code.to_owned(), settings[0]);
+    intcode_ret_0 = intcode_ret_0.resume_with_input(first_input);
+
+    let mut intcode_ret_1 = run_instruction_set_with_input(code.to_owned(), settings[1]);
+    let mut input_1 = get_output(&intcode_ret_0);
+    intcode_ret_1 = intcode_ret_1.resume_with_input(input_1);
+
+    let mut intcode_ret_2 = run_instruction_set_with_input(code.to_owned(), settings[2]);
+    let mut input_2 = get_output(&intcode_ret_1);
+    intcode_ret_2 = intcode_ret_2.resume_with_input(input_2);
+
+    let mut intcode_ret_3 = run_instruction_set_with_input(code.to_owned(), settings[3]);
+    let mut input_3 = get_output(&intcode_ret_2);
+    intcode_ret_3 = intcode_ret_3.resume_with_input(input_3);
+
+    let mut intcode_ret_4 = run_instruction_set_with_input(code.to_owned(), settings[4]);
+    let mut input_4 = get_output(&intcode_ret_3);
+    intcode_ret_4 = intcode_ret_4.resume_with_input(input_4);
+
+    let mut input_0 = get_output(&intcode_ret_4);
 
     loop {
-        let return_type = step(settings[0], first_input, amp_0_code);
-        let (next_input, amp_0_code_new) = get_output(return_type);
-        amp_0_code = amp_0_code_new;
-        let return_type = step(settings[1], next_input, amp_1_code);
-        let (next_input, amp_1_code_new) = get_output(return_type);
-        amp_1_code = amp_1_code_new;
+        intcode_ret_0 = intcode_ret_0.resume_with_input(input_0);
 
-        let return_type = step(settings[2], next_input, amp_2_code);
-        let (next_input, amp_2_code_new) = get_output(return_type);
-        amp_2_code = amp_2_code_new;
+        input_1 = get_output(&intcode_ret_0);
+        intcode_ret_1 = intcode_ret_1.resume_with_input(input_1);
 
-        let return_type = step(settings[3], next_input, amp_3_code);
-        let (next_input, amp_3_code_new) = get_output(return_type);
-        amp_3_code = amp_3_code_new;
+        input_2 = get_output(&intcode_ret_1);
+        intcode_ret_2 = intcode_ret_2.resume_with_input(input_2);
 
-        let return_type= step(settings[4], next_input, amp_4_code);
+        input_3 = get_output(&intcode_ret_2);
+        intcode_ret_3 = intcode_ret_3.resume_with_input(input_3);
 
-        if let IntcodeReturnType::Interrupted(state) = return_type {
-            amp_4_code = state.code;
+        input_4 = get_output(&intcode_ret_3);
+        intcode_ret_4 = intcode_ret_4.resume_with_input(input_4);
 
-            first_input = *state.output.first().unwrap();
-        } else if let IntcodeReturnType::Finished(state) = return_type {
-            return *state.output.first().unwrap();
-        } else {
-            panic!("not expected {:?}", return_type)
+        let out =  get_output_loop(&intcode_ret_4);
+        input_0 = out.0;
+
+
+        if out.1 {
+            return input_0;
         }
     }
-
 }
 
 fn step(start_input: i64, second_input: i64, code: Vec<i64>) -> IntcodeReturnType {
-    let intcode = run_instruction_set_with_input(code.clone(), start_input);
+    let intcode = run_instruction_set_with_input(code, start_input);
     return intcode.resume_with_input(second_input);
 }
 
-fn get_output(return_type: IntcodeReturnType) -> (i64, Memory) {
+fn get_output(return_type: &IntcodeReturnType) -> i64 {
     if let IntcodeReturnType::Interrupted(state) = return_type {
-        return (*state.output.first().unwrap(), state.code);
-    }else if let IntcodeReturnType::Finished(state) = return_type {
-        return (*state.output.first().unwrap(), state.code);
+        return *state.output.last().unwrap();
+    } else if let IntcodeReturnType::Finished(state) = return_type {
+        return *state.output.last().unwrap();
+    } else {
+        panic!("not expected {:?}", return_type)
+    }
+}
+
+fn get_output_loop(return_type: &IntcodeReturnType) -> (i64, bool) {
+    if let IntcodeReturnType::Interrupted(state) = return_type {
+        return (*state.output.last().unwrap(), false);
+    } else if let IntcodeReturnType::Finished(state) = return_type {
+        return (*state.output.last().unwrap(), true);
     } else {
         panic!("not expected {:?}", return_type)
     }
@@ -148,14 +167,14 @@ mod test {
     }
 
     mod multi_run {
-    use super::*;
+        use super::*;
         #[test]
         fn test_run_settings_1() {
             let strength = run_settings_until_halt(
-                [9,8,7,6,5],
+                [9, 8, 7, 6, 5],
                 &vec![
-                    3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,
-                    27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5
+                    3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001,
+                    28, -1, 28, 1005, 28, 6, 99, 0, 0, 5,
                 ],
             );
 
@@ -165,16 +184,15 @@ mod test {
         #[test]
         fn test_run_settings_2() {
             let strength = run_settings_until_halt(
-                [9,7,8,5,6],
+                [9, 7, 8, 5, 6],
                 &vec![
-                    3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,
-                      -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,
-                      53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10
+                    3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26,
+                    1001, 54, -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55,
+                    2, 53, 55, 53, 4, 53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
                 ],
             );
 
             assert_eq!(strength, 18216);
         }
-
     }
 }
