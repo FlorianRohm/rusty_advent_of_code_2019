@@ -14,7 +14,7 @@ pub enum IntcodeReturnType {
 }
 
 impl IntcodeReturnType {
-    pub fn resume_with_input(self, input: i32) -> IntcodeReturnType {
+    pub fn resume_with_input(self, input: i64) -> IntcodeReturnType {
         if let IntcodeReturnType::Interrupted(mut state) = self {
             state.input = input;
             state.resume = true;
@@ -29,8 +29,8 @@ impl IntcodeReturnType {
 pub struct IntcodeState {
     pub code: Memory,
     index: usize,
-    pub input: i32,
-    pub output: Vec<i32>,
+    pub input: i64,
+    pub output: Vec<i64>,
     resume: bool,
 }
 
@@ -56,7 +56,7 @@ enum OpMode {
     Equals(ParamMode, ParamMode),
 }
 
-pub type Memory = Vec<i32>;
+pub type Memory = Vec<i64>;
 pub type IntcodeResult = std::result::Result<IntcodeState, IntcodeReturnType>;
 
 impl IntcodeState {
@@ -66,7 +66,7 @@ impl IntcodeState {
             ..IntcodeState::default()
         }
     }
-    pub fn with_next_input(code: Memory, input: i32) -> IntcodeState {
+    pub fn with_next_input(code: Memory, input: i64) -> IntcodeState {
         IntcodeState {
             code,
             input,
@@ -75,7 +75,7 @@ impl IntcodeState {
         }
     }
 
-    pub fn set_next_input(self, input: i32) -> IntcodeState {
+    pub fn set_next_input(self, input: i64) -> IntcodeState {
         IntcodeState {
             resume: true,
             input,
@@ -99,7 +99,7 @@ trait TryToUsize {
     fn to_usize(&self) -> Result<usize, IntcodeReturnType>;
 }
 
-impl TryToUsize for i32 {
+impl TryToUsize for i64 {
     fn to_usize(&self) -> Result<usize, IntcodeReturnType> {
         self.clone()
             .try_into()
@@ -108,7 +108,7 @@ impl TryToUsize for i32 {
 }
 
 impl ProgramState {
-    fn from_memory_location(input: i32) -> Result<Self, IntcodeReturnType> {
+    fn from_memory_location(input: i64) -> Result<Self, IntcodeReturnType> {
         use OpMode::*;
 
         assert!(input <= 99999);
@@ -141,7 +141,7 @@ pub fn run_instruction_set(memory: Memory) -> IntcodeReturnType {
     complete_intcode(IntcodeState::from(memory))
 }
 
-pub fn run_instruction_set_with_input(memory: Memory, input: i32) -> IntcodeReturnType {
+pub fn run_instruction_set_with_input(memory: Memory, input: i64) -> IntcodeReturnType {
     complete_intcode(IntcodeState::with_next_input(memory, input))
 }
 
@@ -247,7 +247,7 @@ fn op_modes_3_inputs(
     mut intcode_state: IntcodeState,
     mode_1: ParamMode,
     mode_2: ParamMode,
-    operation: impl Fn(i32, i32) -> i32,
+    operation: impl Fn(i64, i64) -> i64,
 ) -> IntcodeResult {
     let index = intcode_state.index;
     let operand_1 = get_value_at_index_location(&intcode_state.code, index + 1, &mode_1)?;
@@ -263,7 +263,7 @@ fn op_modes_3_inputs(
     Ok(intcode_state)
 }
 
-fn get_index_value(code: &Memory, index: usize) -> Result<i32, IntcodeReturnType> {
+fn get_index_value(code: &Memory, index: usize) -> Result<i64, IntcodeReturnType> {
     Ok(code
         .get(index)
         .ok_or(IntcodeReturnType::IndexError)?
@@ -274,10 +274,10 @@ fn get_value_at_index_location(
     code: &Memory,
     index: usize,
     mode: &ParamMode,
-) -> Result<i32, IntcodeReturnType> {
+) -> Result<i64, IntcodeReturnType> {
     let index_value = get_index_value(code, index)?;
     match mode {
-        Immediate => Ok(index_value as i32),
+        Immediate => Ok(index_value as i64),
         Position => {
             let i: usize = index_value.to_usize()?;
 
@@ -289,7 +289,7 @@ fn get_value_at_index_location(
 fn try_set_at_index_location(
     mut code: Memory,
     index: usize,
-    value: i32,
+    value: i64,
 ) -> Result<Memory, IntcodeReturnType> {
     let target_index: usize = code
         .get(index)
@@ -308,7 +308,7 @@ mod tests {
     use super::*;
 
     impl IntcodeState {
-        fn from_all(code: Memory, index: usize, input: i32, output: Vec<i32>) -> IntcodeState {
+        fn from_all(code: Memory, index: usize, input: i64, output: Vec<i64>) -> IntcodeState {
             IntcodeState {
                 code,
                 index,
@@ -693,7 +693,7 @@ mod tests {
             );
         }
 
-        fn test_for_output(return_type: IntcodeReturnType, output: Vec<i32>) {
+        fn test_for_output(return_type: IntcodeReturnType, output: Vec<i64>) {
             if let IntcodeReturnType::Finished(state) = return_type {
                 assert_eq!(state.output, output)
             } else {

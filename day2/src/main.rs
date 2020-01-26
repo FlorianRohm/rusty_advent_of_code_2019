@@ -9,7 +9,7 @@ fn main() {
 
     println!("Intcode Return: {:?}", intcode);
 
-    let valid_values: Vec<i32> = find_inputs_for(&original_code, 19_690_720)
+    let valid_values: Vec<i64> = find_inputs_for(&original_code, 19_690_720)
         .iter()
         .map(|(noun, verb)| 100 * noun + verb)
         .collect();
@@ -17,7 +17,7 @@ fn main() {
     println!("valid inputs are: {:?}", valid_values)
 }
 
-fn find_inputs_for(memory: &Memory, wanted_output: i32) -> Vec<(i32, i32)> {
+fn find_inputs_for(memory: &Memory, wanted_output: i64) -> Vec<(i64, i64)> {
     let mut valid_values = vec![];
     for (noun, verb) in iproduct!(0..99, 0..99) {
         let code = get_custom_inputs(&memory, noun, verb);
@@ -44,7 +44,7 @@ fn find_inputs_for(memory: &Memory, wanted_output: i32) -> Vec<(i32, i32)> {
     valid_values
 }
 
-fn get_custom_inputs(memory: &Memory, noun: i32, verb: i32) -> Memory {
+fn get_custom_inputs(memory: &Memory, noun: i64, verb: i64) -> Memory {
     let mut new_memory = memory.clone();
 
     new_memory[1] = noun;
