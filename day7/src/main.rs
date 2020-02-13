@@ -87,9 +87,8 @@ fn run_settings_until_halt(settings: [i64; 5], code: &Memory) -> i64 {
         input_4 = get_output(&intcode_ret_3);
         intcode_ret_4 = intcode_ret_4.resume_with_input(input_4);
 
-        let out =  get_output_loop(&intcode_ret_4);
+        let out = get_output_loop(&intcode_ret_4);
         input_0 = out.0;
-
 
         if out.1 {
             return input_0;
